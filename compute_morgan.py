@@ -53,12 +53,10 @@ def compute_source_morgan_fingerprints():
         #                             mode='w')
         lower_limit += pagination
         print(final_result)
-    # S3_writer.upload_file('fingerprints.csv')  #  TODO: uncomment this before commit
+    S3_writer.upload_file('fingerprints.csv')
 
 def compute_target_morgan_fingerprints(df: pd.DataFrame) -> pd.DataFrame:
     '''Starts parallel computing of targets morgan fingerprints'''
-    from db_interact import data_load
-    from S3_interact import S3_writer
 
     number_of_rows = len(df.index)
     if number_of_rows > 0:
@@ -66,7 +64,7 @@ def compute_target_morgan_fingerprints(df: pd.DataFrame) -> pd.DataFrame:
         mpp_instance = MolecularPropertiesProcessor(
             df,
             target_col='smiles',
-            mol_name_col='molecule name',
+            mol_name_col='chembl_id',
             hyperthreading=True  # we need real physical cores for the processes
         )
         final_result = mpp_instance.process_data()

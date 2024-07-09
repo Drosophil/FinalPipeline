@@ -50,18 +50,51 @@ class S3BucketAccess:
         df.to_csv(buffer_io, header=header, index=index, mode=mode)
         self.client.put_object(
             Bucket=self.bucket_name,
-            Key=self.folder_name+object_name,
+            Key=self.folder_name + '/' + object_name,
             Body=buffer_io.getvalue()
         )
-        return f'{self.client.meta.endpoint_url}/{self.bucket_name}/{self.folder_name}{object_name}'
+        return f'{self.client.meta.endpoint_url}/{self.bucket_name}/{self.folder_name}/{object_name}'
+
+    def save_df_to_S3_parquet(self,
+                          object_name: str,
+                          df: pd.DataFrame,
+                          index=False,
+                          ):
+        # buffer_io = StringIO()
+        df.to_parquet(object_name, index=index)
+        # self.client.put_object(
+        #     Bucket=self.bucket_name,
+        #     Key=self.folder_name + '/' + object_name,
+        #     Body=buffer_io.getvalue()
+        # )
+        self.upload_file(object_name)
+        os.remove(object_name)
+        return f's3://{self.bucket_name}/{self.folder_name}/{object_name}'
+
 
     def upload_file(self,
                     filename: str):
         with open(filename, 'rb') as file_to_upload:
-            self.client.upload_file(filename, self.bucket_name, self.folder_name + filename)
+            self.client.upload_file(filename, self.bucket_name, self.folder_name + '/' + filename)
 
-    def load_object_from_S3(self, image_name, file_name):
-        with open(file_name, 'wb') as f:
-            self.client.download_fileobj(self.bucket_name, self.folder_name+image_name, f)
+    def load_object_from_S3(self, file_name: str, column_names: list):
+        path = f's3://{self.bucket_name}/{self.folder_name}/{file_name}'
+        try:
+            df = pd.read_csv(path, sep=',',
+                             names=column_names,
+                             on_bad_lines='warn',
+                             encoding='utf-8',
+                             skiprows=1,
+                             )
+        except UnicodeDecodeError as e:
+            df = pd.read_csv(path,
+                             sep=',',
+                             names=column_names,
+                             on_bad_lines='warn',
+                             encoding='cp1252',
+                             skiprows=1,
+                             )
+        return df
+
 
 S3_writer = S3BucketAccess(os.environ['BUCKET_NAME'], os.environ['S3_FOLDER_NAME'])
