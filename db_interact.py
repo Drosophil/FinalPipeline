@@ -82,7 +82,7 @@ class DataLoaderToRDS():
                         sql = f'select * from {table_name.replace("bronze_", "")} limit 1;'
                         df = chembl_downloader.query(sql)
                         logger.info(f'Inserting data from table {table_name}.')
-                        self.insert_data_to_RDS(df, 'bronze_' + table_name)
+                        self.insert_data_to_RDS(df, 'bronze_' + table_name, if_exists='replace')
                 # os.remove(path)
             else:
                 return False
@@ -94,9 +94,10 @@ class DataLoaderToRDS():
     def insert_data_to_RDS(self,
                            df: pd.DataFrame,
                            name: str,
+                           if_exists='replace',
                            ):
         '''Inserts a DataFrame in the DB as a table'''
-        df.to_sql(name, con=self.alc_conn, if_exists='replace', index=False)
+        df.to_sql(name, con=self.alc_conn, if_exists=if_exists, index=False)
 
     def check_if_exists(self,
                         name: str,
@@ -187,8 +188,9 @@ class DataLoaderToRDS():
             finally:
                 yield result
 
-
-data_load = DataLoaderToRDS()
+def return_db_object() -> DataLoaderToRDS:
+    data_load = DataLoaderToRDS()
+    return data_load
 
 # sql = """
 # select * from compound_properties;

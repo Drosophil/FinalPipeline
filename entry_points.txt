@@ -1,0 +1,32 @@
+Setting up the db:
+
+    return_db_object() -> DataLoaderToRDS
+            <returns the DB access object>
+    check_and_construct_bronze_tables(self,
+                                          tables=['bronze_molecule_dictionary',
+                                                  'bronze_compound_properties',
+                                                  'bronze_compound_structures',
+                                                  'bronze_chembl_id_lookup',
+                                                  ],
+                                          construct=False):
+        <checks if tables exist and constructs them on construct=True>
+
+Setting up the output bucket:
+
+    def return_S3_access_object() -> S3BucketAccess
+        <sets up the output bucket from the environment vars> TODO: change this, ENVs should be accessed in main script.
+
+morgan fingerprints:
+
+    compute_source_morgan_fingerprints(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess)
+        <computes morgan fings for all chembl>
+
+tanimoto:
+
+    get_similarities(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess)
+        writes all target similarities to parquet files
+
+datamart:
+
+    injest_silver_tables(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess) -> bool
+        constructs datamart additions and inserts them to DB silver tables

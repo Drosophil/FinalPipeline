@@ -11,11 +11,12 @@ import numpy as np
 from rdkit import Chem, DataStructs
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect, TanimotoSimilarity
 
-from db_interact import data_load
-from S3_interact import S3BucketAccess, S3_writer
+from db_interact import DataLoaderToRDS, return_db_object
+from S3_interact import S3BucketAccess, return_S3_access_object
 from compute_morgan import compute_target_morgan_fingerprints
 
-def get_input_files_list() -> list:
+
+def get_input_files_list(data_load: DataLoaderToRDS) -> list:
     '''reads a list of .csv files in an input folder
     and removes from it those files that are already in DB'''
 
@@ -71,9 +72,9 @@ def clean_the_data(df: pd.DataFrame) -> pd.DataFrame:
     df.drop_duplicates(subset='chembl_id', inplace=True)
     return df
 
-def read_input_files():
+def read_input_files(data_load: DataLoaderToRDS):
     '''Read input files do DataFrames'''
-    input_files = get_input_files_list()
+    input_files = get_input_files_list(data_load=data_load)
     if input_files:
         S3_input_files = S3BucketAccess(os.environ['BUCKET_NAME'], 'final_task/input_files')
         results = []
@@ -93,7 +94,7 @@ def extract_bit_vector(s):
     fingerprint.FromBase64(s)
     return fingerprint
 
-def load_chembl_fingerprints() -> pd.DataFrame:
+def load_chembl_fingerprints(S3_writer: S3BucketAccess) -> pd.DataFrame:
     '''load saved CHEMBL fingerprints from S3'''
     file = "fingerprints.csv"
     column_names = ['molregno', 'morgan_fingerprint']
@@ -103,7 +104,7 @@ def load_chembl_fingerprints() -> pd.DataFrame:
     source_mols = source_mols.drop('morgan_fingerprint', axis=1)
     return source_mols
 
-def get_output_bucket_file_list() -> list:
+def get_output_bucket_file_list(S3_writer: S3BucketAccess) -> list:
     '''get list of files from output bucket'''
     file_list = []
     for key in S3_writer.get_objects_list()['Contents']:
@@ -139,13 +140,13 @@ def compute_tanimoto_similarities(
     return result
 
 
-def get_similarities():
+def get_similarities(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
     '''get similarity scores for each target and save them in S3'''
-    target_mols = read_input_files()
+    target_mols = read_input_files(data_load=data_load)
     if target_mols:
-        source_mols = load_chembl_fingerprints()
+        source_mols = load_chembl_fingerprints(S3_writer=S3_writer)
 
-        file_list = get_output_bucket_file_list()
+        file_list = get_output_bucket_file_list(S3_writer=S3_writer)
         print(file_list)  # TODO: <-- remove this
 
         #  <<<<<< following is for getting CHEMBL_ID from MOLREGNO,
@@ -166,7 +167,7 @@ def get_similarities():
             # every_set = every_set.reindex(columns=['molregno', 'chembl_id', 'morgan_fingerprint'])
             # print(every_set.head())
 
-            data_load.insert_data_to_RDS(every_set, 'bronze_temporary')
+            data_load.insert_data_to_RDS(every_set, 'bronze_temporary', if_exists='replace')
             query = '''select b.entity_id, b.chembl_id, a.morgan_fingerprint 
             from bronze_temporary a 
             left join bronze_chembl_id_lookup b 
@@ -191,4 +192,6 @@ def get_similarities():
 
 
 if __name__=='__main__':
-    get_similarities()
+    data_load = return_db_object()
+    S3_writer = return_S3_access_object()
+    get_similarities(data_load=data_load, S3_writer=S3_writer)
