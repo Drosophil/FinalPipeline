@@ -82,7 +82,7 @@ class DataLoaderToRDS():
                         sql = f'select * from {table_name.replace("bronze_", "")} limit 1;'
                         df = chembl_downloader.query(sql)
                         logger.info(f'Inserting data from table {table_name}.')
-                        self.insert_data_to_RDS(df, 'bronze_' + table_name)
+                        self.insert_data_to_RDS(df, 'bronze_' + table_name, if_exists='replace')
                 # os.remove(path)
             else:
                 return False
@@ -94,9 +94,14 @@ class DataLoaderToRDS():
     def insert_data_to_RDS(self,
                            df: pd.DataFrame,
                            name: str,
+                           if_exists='replace',
                            ):
         '''Inserts a DataFrame in the DB as a table'''
-        df.to_sql(name, con=self.alc_conn, if_exists='replace', index=False)
+        try:
+            df.to_sql(name, con=self.alc_conn, if_exists=if_exists, index=False)
+        except UniqueViolation as e:
+            logger.info(f'Diplicate found. Msg: {e}')
+
 
     def check_if_exists(self,
                         name: str,
@@ -127,7 +132,7 @@ class DataLoaderToRDS():
                 cur.close()
                 return None
         except psycopg2.Error as e:
-            print(e)
+            logger.error(f'Error executing query {query}: {e}')
             raise e
 
     def insert_query_executor(self,
@@ -145,24 +150,37 @@ class DataLoaderToRDS():
             else:
                 return None
         except psycopg2.Error as e:
-            print(e)
+            logger.error(f'Insertion to table error: {e}')
             raise e
 
-    def create_query_executor(self,
-                       query: str):
-        '''Query executor for DB CREATE operations'''
+    def populate_dim_table_query_executor(self,
+                              query: str,
+                              ):
+        '''Query executor for DB INSERT operations'''
         try:
             cur = self.db.cursor()
             result = cur.execute(query)
             self.db.commit()
             cur.close()
             if result:
-                self.db.commit()
                 return result
             else:
                 return None
-        except psycopg2.Error as e:
-            print(e)
+        except UniqueViolation as e:
+            logger.warning(f'Unique violation: {e}')
+            self.db.rollback()
+
+
+    def create_query_executor(self,
+                       query: str):
+        '''Query executor for DB CREATE operations'''
+        try:
+            cur = self.db.cursor()
+            cur.execute(query)
+            self.db.commit()
+            cur.close()
+        except UniqueViolation as e:
+            logger.error(f'Error creating tables: {e}')
             raise e
 
 
@@ -187,8 +205,9 @@ class DataLoaderToRDS():
             finally:
                 yield result
 
-
-data_load = DataLoaderToRDS()
+def return_db_object() -> DataLoaderToRDS:
+    data_load = DataLoaderToRDS()
+    return data_load
 
 # sql = """
 # select * from compound_properties;

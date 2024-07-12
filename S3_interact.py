@@ -1,8 +1,10 @@
+import io
 import logging
 import os
 import boto3
 import pandas as pd
 from io import StringIO
+from botocore.exceptions import ClientError
 
 import psycopg2
 from psycopg2 import sql
@@ -10,6 +12,7 @@ from psycopg2.errors import UniqueViolation
 from datetime import datetime
 
 from logging_config import logger
+from db_interact import DataLoaderToRDS
 
 class S3BucketAccess:
     def __init__(self, bucket_name, folder_name):
@@ -77,7 +80,8 @@ class S3BucketAccess:
         with open(filename, 'rb') as file_to_upload:
             self.client.upload_file(filename, self.bucket_name, self.folder_name + '/' + filename)
 
-    def load_object_from_S3(self, file_name: str, column_names: list):
+    def load_object_from_S3(self, file_name: str, column_names: list) -> pd.DataFrame:
+        '''loads CSV files from S3'''
         path = f's3://{self.bucket_name}/{self.folder_name}/{file_name}'
         try:
             df = pd.read_csv(path, sep=',',
@@ -96,5 +100,20 @@ class S3BucketAccess:
                              )
         return df
 
+    def load_parquet_from_S3(self, object_name: str) -> pd.DataFrame:
+        '''loads parquet file from S3'''
+        try:
+            object = self.client.get_object(
+                Bucket=self.bucket_name,
+                Key=self.folder_name + '/' + object_name,
+            )
+            df = pd.read_parquet(io.BytesIO(object['Body'].read()))
+            return df
+        except ClientError as e:
+            logger.error(f'Error reading {object_name} from S3.')
+            return None
 
-S3_writer = S3BucketAccess(os.environ['BUCKET_NAME'], os.environ['S3_FOLDER_NAME'])
+
+def return_S3_access_object() -> S3BucketAccess:
+    S3_writer = S3BucketAccess(os.environ['BUCKET_NAME'], os.environ['S3_FOLDER_NAME'])
+    return S3_writer

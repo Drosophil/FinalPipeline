@@ -12,11 +12,11 @@ from datetime import datetime
 from logging_config import logger
 
 from mpp import MolecularPropertiesProcessor
+from db_interact import DataLoaderToRDS
+from S3_interact import S3BucketAccess
 
-def compute_source_morgan_fingerprints():
+def compute_source_morgan_fingerprints(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
     '''Starts parallel computing of chembl morgan fingerprints'''
-    from db_interact import data_load
-    from S3_interact import S3_writer
 
     query = "select count(*) from bronze_compound_structures;"
     df = data_load.query_executor(query)
