@@ -15,7 +15,7 @@ def load_similarities_from_parquet(S3_writer: S3BucketAccess) -> list | None:
     if file_list:
         dataframes_list = []
         # TODO: remove this 2 lines
-        # temp_list = [file_list[i] for i in range(4)]
+        # temp_list = [file_list[i] for i in range(2)]
         # file_list = temp_list
 
         for each_file in file_list:
@@ -50,25 +50,55 @@ def get_top_10_similarities(df: pd.DataFrame) -> pd.DataFrame | None:
         return None
 
 
-def construct_facts_dataframe(S3_writer: S3BucketAccess) -> pd.DataFrame | None:
+def construct_facts_dataframe(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess) -> pd.DataFrame | None:
     '''constructs facts dataframe'''
     list_of_target_sims = load_similarities_from_parquet(S3_writer=S3_writer)
     if list_of_target_sims:
-        facts_df = pd.DataFrame
+        facts_df = pd.DataFrame()
         for each_target in list_of_target_sims:
             if each_target is not None:
-                facts_df._append(get_top_10_similarities(each_target), ignore_index=True)
+                top_10 = get_top_10_similarities(each_target)
+                facts_df = pd.concat([facts_df, top_10], ignore_index=True)
+        query = 'SELECT source_molregno, target_molregno FROM silver_fact;'
+        facts_already_in_db = data_load.query_executor(query)
+        if (facts_already_in_db is not None) and (len(facts_already_in_db) > 0):
+            # Find and drop duplicates that are already in the DB:
+            facts_already_in_db_list = []
+            facts_to_be_added_list = []
+            def get_unique_pairs(a: int, b: int, worklist: list):
+                worklist.append((a, b))
+            facts_already_in_db.apply(lambda x: get_unique_pairs(x['source_molregno'],
+                                                                 x['target_molregno'],
+                                                                 facts_already_in_db_list
+                                                                 ), axis=1)
+            facts_df.apply(lambda x: get_unique_pairs(x['source_molregno'],
+                                                                 x['target_molregno'],
+                                                                 facts_to_be_added_list
+                                                                 ), axis=1)
+            for a in facts_to_be_added_list:
+                if a in facts_already_in_db_list:
+                    index_of_a_duplicate_row = facts_df[((facts_df['source_molregno'].eq(a[0])) &
+                                                         (facts_df['target_molregno'].eq(a[1])))].index
+                    facts_df.drop(index_of_a_duplicate_row, inplace=True)
+            # duplicates dropped. In normal workflow there should not be duplicates, but just in case
         return facts_df
     else:
         return None
 
 
-def construct_dim_draft_dataframe(facts_df: pd.DataFrame) -> pd.DataFrame | None:
+def construct_dim_draft_dataframe(data_load: DataLoaderToRDS, facts_df: pd.DataFrame) -> pd.DataFrame | None:
     '''constructs a dim addition draft (column with unique mol ID's from a given dataframe)'''
     if facts_df is not None:
+        query = 'SELECT molregno FROM silver_dim_molecules;'
+        already_there_list = []
+        def from_df_to_list(n: int):
+            already_there_list.append(n)
+        already_there = data_load.query_executor(query)
+        if already_there is not None:
+            already_there['molregno'].apply(lambda n: from_df_to_list(n))
         mol_id_list = []
         def fill_the_list(n: int):
-            if n not in mol_id_list:
+            if (n not in mol_id_list) and (n not in already_there_list):
                 mol_id_list.append(n)
         facts_df['source_molregno'].apply(lambda n: fill_the_list(n))
         facts_df['target_molregno'].apply(lambda n: fill_the_list(n))
@@ -78,13 +108,72 @@ def construct_dim_draft_dataframe(facts_df: pd.DataFrame) -> pd.DataFrame | None
         return None
 
 
-def injest_silver_tables(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess) -> bool:
+def silver_tables_check_and_create(data_load: DataLoaderToRDS):
+    '''checks if silver tables exist and, if not, creates them'''
+    query = '''
+        CREATE TABLE IF NOT EXISTS silver_dim_molecules (
+        molregno INTEGER PRIMARY KEY,
+        chembl_id VARCHAR,
+        molecule_type VARCHAR,
+        mw_freebase FLOAT,
+        alogp FLOAT,
+        psa FLOAT,
+        cx_logp FLOAT,
+        molecular_species VARCHAR,
+        full_mwt FLOAT,
+        aromatic_rings FLOAT,
+        heavy_atoms FLOAT,
+        UNIQUE(molregno)
+        );
+    '''
+    data_load.create_query_executor(query)
+    query = '''
+        CREATE TABLE IF NOT EXISTS silver_fact (
+        id SERIAL PRIMARY KEY,
+        source_molregno INTEGER,
+        target_molregno INTEGER,
+        tanimoto_similarity FLOAT,
+        has_duplicates_of_last_largest_score INTEGER,
+        UNIQUE (source_molregno, target_molregno),
+        CONSTRAINT fk_source_mol
+            FOREIGN KEY(source_molregno)
+                REFERENCES silver_dim_molecules(molregno)
+                ON DELETE CASCADE,
+        CONSTRAINT fk_target_mol
+            FOREIGN KEY(target_molregno)
+                REFERENCES silver_dim_molecules(molregno)
+                ON DELETE CASCADE
+    );
+    '''
+    data_load.create_query_executor(query)
+
+
+def injest_silver_tables(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
     '''insert to db and drop duplicates'''
+    silver_tables_check_and_create(data_load=data_load)
     facts_df = construct_facts_dataframe(data_load=data_load, S3_writer=S3_writer)
-    dim_draft = construct_dim_draft_dataframe(facts_df=facts_df)
-    '''
-    here is the future code to put those dataframes to RDS with S3BucketAccess object
-    '''
+    dim_draft = construct_dim_draft_dataframe(data_load=data_load, facts_df=facts_df)
+    if dim_draft is not None:
+        data_load.insert_data_to_RDS(dim_draft, 'bronze_dim_draft', if_exists='replace')
+        query = '''
+        INSERT INTO silver_dim_molecules (molregno, chembl_id, molecule_type, 
+        mw_freebase, alogp, psa, cx_logp, molecular_species, 
+        full_mwt, aromatic_rings, heavy_atoms)
+        SELECT a.molregno, b.chembl_id, c.molecule_type, 
+        d.mw_freebase, d.alogp, d.psa, d.cx_logp, d.molecular_species, 
+        d.full_mwt, d.aromatic_rings, d.heavy_atoms 
+        FROM bronze_dim_draft a 
+        JOIN bronze_chembl_id_lookup b on a.molregno = b.entity_id 
+        JOIN bronze_molecule_dictionary c on a.molregno = c.molregno 
+        JOIN bronze_compound_properties d on a.molregno = d.molregno
+        WHERE b.entity_type = 'COMPOUND';
+        '''
+        data_load.populate_dim_table_query_executor(query)
+        query = 'drop table bronze_dim_draft;'
+        data_load.create_query_executor(query)
+    if facts_df is not None:
+        data_load.insert_data_to_RDS(facts_df, 'silver_fact', if_exists='append')
+
 
 if __name__=='__main__':
     data_load = return_db_object()
