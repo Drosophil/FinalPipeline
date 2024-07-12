@@ -28,5 +28,5 @@ tanimoto:
 
 datamart:
 
-    injest_silver_tables(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess) -> bool
+    injest_silver_tables(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess)
         constructs datamart additions and inserts them to DB silver tables

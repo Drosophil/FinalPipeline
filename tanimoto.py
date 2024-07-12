@@ -21,17 +21,20 @@ def get_input_files_list(data_load: DataLoaderToRDS) -> list:
     and removes from it those files that are already in DB'''
 
     input_files_list = []
-    S3_input_files = S3BucketAccess(os.environ['BUCKET_NAME'], 'final_task/input_files')
+    S3_input_files = S3BucketAccess(os.environ['BUCKET_NAME'], os.environ['S3_INPUT_FOLDER'])
     for key in S3_input_files.get_objects_list()['Contents']:
-        filepath = key['Key'].replace('final_task/input_files/', '')
+        filepath = key['Key'].replace(os.environ['S3_INPUT_FOLDER'] + '/', '')
         if '.csv' in filepath:
             input_files_list.append(filepath)
 
-    if data_load.check_if_exists('saved_used_input_files'):
-        query = 'select file_list from saved_used_input_files;'
-        used_files_list = data_load.query_executor(query)
-        if used_files_list is not None:
-            used_files_list = used_files_list.iloc[0, 0].split()
+    if data_load.check_if_exists('used_input_files'):
+        query = 'select file from used_input_files;'
+        used_files = data_load.query_executor(query)
+        used_files_list = []
+        if used_files is not None:
+            def populate_list(s: str):
+                used_files_list.append(s)
+            used_files['file'].apply(lambda s: populate_list(s))
         else:
             used_files_list = []
         list_to_remove = []
@@ -40,22 +43,28 @@ def get_input_files_list(data_load: DataLoaderToRDS) -> list:
                 list_to_remove.append(each_file)
         for each_file in list_to_remove:
             input_files_list.remove(each_file)
-        used_files_list += input_files_list
-        used_files_list_str = ' '.join(used_files_list)
-        query = 'truncate table saved_used_input_files;'
-        data_load.create_query_executor(query)
-        query = 'insert into saved_used_input_files (file_list) VALUES (%s);'
-        data_load.insert_query_executor(query, used_files_list_str)
+        # used_files_list += input_files_list
+        # query = 'truncate table used_input_files;'
+        # data_load.create_query_executor(query)
+        for each_file in input_files_list:
+            query = 'insert into used_input_files (file) VALUES (%s);'
+            data_load.insert_query_executor(query, each_file)
     else:
-        query = 'create table if not exists saved_used_input_files (file_list VARCHAR);'
+        query = '''create table if not exists used_input_files (
+                        file VARCHAR,
+                        timestamp TIMESTAMP DEFAULT current_timestamp
+                        );'''
         data_load.create_query_executor(query)
-        input_files_list_str = ' '.join(input_files_list)
-        query = 'insert into saved_used_input_files (file_list) VALUES (%s);'
-        data_load.insert_query_executor(query, input_files_list_str)
+        for each_file in input_files_list:
+            query = 'insert into used_input_files (file) VALUES (%s);'
+            data_load.insert_query_executor(query, each_file)
+        # input_files_list_str = ' '.join(input_files_list)
+        # query = 'insert into saved_used_input_files (file_list) VALUES (%s);'
+        # data_load.insert_query_executor(query, input_files_list_str)
         #   -------------------------------------------------------------------------------
         # TODO: remove these 2 lines
-        query = 'drop table saved_used_input_files;'
-        data_load.create_query_executor(query)
+        # query = 'drop table saved_used_input_files;'
+        # data_load.create_query_executor(query)
         #   -------------------------------------------------------------------------------
     input_files_list.sort(reverse=True)
     return input_files_list
@@ -76,7 +85,7 @@ def read_input_files(data_load: DataLoaderToRDS):
     '''Read input files do DataFrames'''
     input_files = get_input_files_list(data_load=data_load)
     if input_files:
-        S3_input_files = S3BucketAccess(os.environ['BUCKET_NAME'], 'final_task/input_files')
+        S3_input_files = S3BucketAccess(os.environ['BUCKET_NAME'], os.environ['S3_INPUT_FOLDER'])
         results = []
         column_names = ['molecule name', 'smiles', ...]
         for file in input_files:
@@ -147,7 +156,7 @@ def get_similarities(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
         source_mols = load_chembl_fingerprints(S3_writer=S3_writer)
 
         file_list = get_output_bucket_file_list(S3_writer=S3_writer)
-        print(file_list)  # TODO: <-- remove this
+        # print(file_list)  # TODO: <-- remove this
 
         #  <<<<<< following is for getting CHEMBL_ID from MOLREGNO,
         #  <<<<<< and in works, but
@@ -195,3 +204,4 @@ if __name__=='__main__':
     data_load = return_db_object()
     S3_writer = return_S3_access_object()
     get_similarities(data_load=data_load, S3_writer=S3_writer)
+    # print(get_input_files_list(data_load=data_load))
