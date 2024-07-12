@@ -79,7 +79,7 @@ class DataLoaderToRDS():
                 for if_exists, table_name in zip(existing_tables, tables):
                     if not if_exists:
                         logger.info(f'Fetching table {table_name}.')
-                        sql = f'select * from {table_name.replace("bronze_", "")} limit 1;'
+                        sql = f'select * from {table_name.replace("bronze_", "")};'
                         df = chembl_downloader.query(sql)
                         logger.info(f'Inserting data from table {table_name}.')
                         self.insert_data_to_RDS(df, 'bronze_' + table_name, if_exists='replace')
