@@ -1,18 +1,13 @@
 import io
-import logging
 import os
+from io import StringIO
+
 import boto3
 import pandas as pd
-from io import StringIO
 from botocore.exceptions import ClientError
 
-import psycopg2
-from psycopg2 import sql
-from psycopg2.errors import UniqueViolation
-from datetime import datetime
+from src.fp_log_config import logger
 
-from logging_config import logger
-from db_interact import DataLoaderToRDS
 
 class S3BucketAccess:
     def __init__(self, bucket_name, folder_name):

@@ -45,7 +45,6 @@ x-airflow-common:
   &airflow-common
   build: .
   environment:
-    MSTEAMS_WEBHOOK: 'our webhook'
     AWS_ACCESS_KEY_ID: 'aws access key id'
     AWS_SECRET_ACCESS_KEY: 'aws secret key'
     AWS_SESSION_TOKEN: 'aws session token'
@@ -54,8 +53,9 @@ x-airflow-common:
     DB_NAME: 'db name'
     DB_USER: 'db user'
     DB_PASSWORD: 'db password'
-    BUCKET_NAME: 'our bucket name'
-    FOLDER_NAME: 'images folder name in the bucket'
+    BUCKET_NAME: 'bucket-name-without-slash-at-the-end'
+    S3_FOLDER_NAME: 'folder/folder/output_folder'
+    S3_INPUT_FOLDER: 'folder/input_folder'
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow

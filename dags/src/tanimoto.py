@@ -7,13 +7,11 @@ import os
 import re
 
 import pandas as pd
-import numpy as np
-from rdkit import Chem, DataStructs
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect, TanimotoSimilarity
 
-from db_interact import DataLoaderToRDS, return_db_object
-from S3_interact import S3BucketAccess, return_S3_access_object
-from compute_morgan import compute_target_morgan_fingerprints
+from src.S3_interact import S3BucketAccess, return_S3_access_object
+from src.compute_morgan import compute_target_morgan_fingerprints
+from src.db_interact import DataLoaderToRDS, return_db_object
 
 
 def get_input_files_list(data_load: DataLoaderToRDS) -> list:

@@ -1,15 +1,12 @@
-import os
-import re
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from db_interact import DataLoaderToRDS, return_db_object
-from S3_interact import S3BucketAccess, return_S3_access_object
-from tanimoto import get_output_bucket_file_list
+from src.S3_interact import S3BucketAccess, return_S3_access_object
+from src.db_interact import DataLoaderToRDS, return_db_object
+from src.tanimoto import get_output_bucket_file_list
 
 
-def load_similarities_from_parquet(S3_writer: S3BucketAccess) -> list | None:
+def load_similarities_from_parquet(S3_writer: S3BucketAccess):
     '''loads all similarities files to a list of pandas dataframes'''
     file_list = get_output_bucket_file_list(S3_writer=S3_writer)
     if file_list:
@@ -28,7 +25,7 @@ def load_similarities_from_parquet(S3_writer: S3BucketAccess) -> list | None:
         return None
 
 
-def get_top_10_similarities(df: pd.DataFrame) -> pd.DataFrame | None:
+def get_top_10_similarities(df: pd.DataFrame):
     '''returnes top 10 chembl similarities dataframe for a given target'''
     if df is not None:
         top_10_df = df.sort_values(by=['similarity'], ascending=False).head(10)
@@ -50,7 +47,7 @@ def get_top_10_similarities(df: pd.DataFrame) -> pd.DataFrame | None:
         return None
 
 
-def construct_facts_dataframe(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess) -> pd.DataFrame | None:
+def construct_facts_dataframe(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
     '''constructs facts dataframe'''
     list_of_target_sims = load_similarities_from_parquet(S3_writer=S3_writer)
     if list_of_target_sims:
@@ -86,7 +83,7 @@ def construct_facts_dataframe(data_load: DataLoaderToRDS, S3_writer: S3BucketAcc
         return None
 
 
-def construct_dim_draft_dataframe(data_load: DataLoaderToRDS, facts_df: pd.DataFrame) -> pd.DataFrame | None:
+def construct_dim_draft_dataframe(data_load: DataLoaderToRDS, facts_df: pd.DataFrame):
     '''constructs a dim addition draft (column with unique mol ID's from a given dataframe)'''
     if facts_df is not None:
         query = 'SELECT molregno FROM silver_dim_molecules;'
