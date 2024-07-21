@@ -1,19 +1,9 @@
-import re
 import pandas as pd
-import rdkit
-from rdkit import Chem, DataStructs
-from rdkit.DataStructs.cDataStructs import ExplicitBitVect
-from rdkit.Chem import AllChem
-from time import time, ctime
-import multiprocessing
-import numpy as np
-from datetime import datetime
 
-from logging_config import logger
+from src.S3_interact import S3BucketAccess
+from src.db_interact import DataLoaderToRDS
+from src.mpp import MolecularPropertiesProcessor
 
-from mpp import MolecularPropertiesProcessor
-from db_interact import DataLoaderToRDS
-from S3_interact import S3BucketAccess
 
 def compute_source_morgan_fingerprints(data_load: DataLoaderToRDS, S3_writer: S3BucketAccess):
     '''Starts parallel computing of chembl morgan fingerprints'''
@@ -29,7 +19,7 @@ def compute_source_morgan_fingerprints(data_load: DataLoaderToRDS, S3_writer: S3
     for iter_count in range(number_of_iterations):
         query = f'select molregno, canonical_smiles' \
                 f' from bronze_compound_structures' \
-                f' where ((molregno >= {lower_limit}) and (molregno < {lower_limit + pagination}));',
+                f' where ((molregno >= {lower_limit}) and (molregno < {lower_limit + pagination}));'
         df = data_load.query_executor(query)  # set the dataframe
         # executor instance
         mpp_instance = MolecularPropertiesProcessor(

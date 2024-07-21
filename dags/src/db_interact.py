@@ -1,24 +1,15 @@
-import re
-import logging
 import os
-import pandas as pd
+import os
 
 import chembl_downloader
-import scikit_posthocs as sp
-import seaborn as sns
-import useful_rdkit_utils as uru
-from rdkit import Chem
-from rdkit.Chem.Draw import MolsToGridImage
-from rdkit.Chem.MolStandardize import rdMolStandardize
-from rdkit.rdBase import BlockLogs
-from tqdm.auto import tqdm
-
+import pandas as pd
 import psycopg2
-from psycopg2 import sql
 from psycopg2.errors import UniqueViolation
-from sqlalchemy import create_engine, URL
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
-from logging_config import logger
+from src.fp_log_config import logger
+
 
 # path = chembl_downloader.download_extract_sqlite()
 # print(path)
@@ -73,16 +64,18 @@ class DataLoaderToRDS():
         for table in tables:
             existing_tables.append(self.check_if_exists(table))
         if False in existing_tables:
-            logger.info('Tables are missing. Downloading CHEMBL.')
+            logger.info('Tables are missing.')
             if construct:
+                logger.info('Downloading CHEMBL...')
                 path = chembl_downloader.download_extract_sqlite()
+                logger.info('CHEMBL dowloaded.')
                 for if_exists, table_name in zip(existing_tables, tables):
                     if not if_exists:
                         logger.info(f'Fetching table {table_name}.')
                         sql = f'select * from {table_name.replace("bronze_", "")};'
                         df = chembl_downloader.query(sql)
                         logger.info(f'Inserting data from table {table_name}.')
-                        self.insert_data_to_RDS(df, 'bronze_' + table_name, if_exists='replace')
+                        self.insert_data_to_RDS(df, table_name, if_exists='replace')
                 # os.remove(path)
             else:
                 return False
@@ -116,6 +109,7 @@ class DataLoaderToRDS():
         except psycopg2.Error as e:
             pass
         finally:
+            print(check_result)
             return check_result
 
     def query_executor(self,

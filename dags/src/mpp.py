@@ -1,14 +1,14 @@
+from billiard.pool import Pool, cpu_count
 import re
-import pandas as pd
-import rdkit
-from rdkit import Chem, DataStructs
-from rdkit.DataStructs.cDataStructs import ExplicitBitVect
-from rdkit.Chem import AllChem
 from time import time, ctime
-import multiprocessing
-import numpy as np
 
-from logging_config import logger
+import numpy as np
+import pandas as pd
+from rdkit import Chem
+from rdkit.Chem import AllChem
+
+from src.fp_log_config import logger
+
 
 class MoleculeProcessingException(Exception):
     '''Exception class'''
@@ -109,7 +109,7 @@ class MolecularPropertiesProcessor:
         start_time = time()
         logger.info("Entering _compute_molecule_properties()")
         # const_size_of_chunks = 5
-        max_amount_of_p = multiprocessing.cpu_count()
+        max_amount_of_p = 1  #  cpu_count()  # with cpu_count() pool is failing on reaching the process response timeout
         if self.hyperthreading:
             max_amount_of_p //= 2  # to avoid hyperthreading
         logger.info(f"Max CPUs = {max_amount_of_p}")
@@ -127,7 +127,7 @@ class MolecularPropertiesProcessor:
 
         logger.info("setting the pool")
 
-        with multiprocessing.Pool(processes=amount_of_chunk_df) as pool:
+        with Pool(processes=amount_of_chunk_df) as pool:
             p_df = pool.starmap(self._compute_molecule_properties_chunk,
                             [(list_of_chunks[number-1], number) for number in range(1, amount_of_chunk_df + 1)])
 
