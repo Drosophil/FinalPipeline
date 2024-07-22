@@ -1,6 +1,6 @@
 <h2>The Final Pipeline.</h2><br>
 Current structure:<br>
-![scheme_3.png](https://github.com/Drosophil/FinalPipeline/blob/main/scheme_3.png)
+![scheme_3.png](https://github.com/Drosophil/FinalPipeline/blob/main/scheme_3.png?raw=true)
 <h3>Installation notes:</h3><br>
 1. Set the following environment variables in <i><b>docker-compose.yml</i></b> file template in project dir:<br><br>
 AWS_ACCESS_KEY_ID=key<br>
@@ -44,18 +44,18 @@ Setting up the DB can take a while, from 1 to 3 hours depending on the system.<b
 
 2. When bronze layer is made and source morgan fingerprints computed, or when bronze tables initially present in DB,
 downstream task reads input files from the input folder, saves file names in <br><br>
-used_input_files<br>![used_files.png](https://github.com/Drosophil/FinalPipeline/blob/main/used_files.png)
+used_input_files<br>![used_files.png](https://github.com/Drosophil/FinalPipeline/blob/main/used_files.png?raw=true)
 <br>
 table in DB for future use (if there are no new files in input folder, silver tables are not modified), computes morgan fingerprints, saves them to parquet files, loads them back, 
 takes top 10, checks for duplicates and constructs datamart silver tables:<br><br>
 silver_fact<br>
-![silver_fact.png](https://github.com/Drosophil/FinalPipeline/blob/main/silver_fact.png)<br>
+![silver_fact.png](https://github.com/Drosophil/FinalPipeline/blob/main/silver_fact.png?raw=true)<br>
 silver_dim_molecules<br>
-![silver_dim_mol.png](https://github.com/Drosophil/FinalPipeline/blob/main/silver_dim_mol.png)
+![silver_dim_mol.png](https://github.com/Drosophil/FinalPipeline/blob/main/silver_dim_mol.png?raw=true)
 <br>
 3. Then the last task creates or replaces views in the DB:
 <br>
-![view_1.png](https://github.com/Drosophil/FinalPipeline/blob/main/view_1.png)
+![view_1.png](https://github.com/Drosophil/FinalPipeline/blob/main/view_1.png?raw=true)
 <br>
 <br>
 <u>Note:</u>
